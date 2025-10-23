@@ -4,7 +4,7 @@
 -- Date: 2025-10-23
 -- ====================================================================
 
-CREATE SCHEMA IF NOT EXISTS `votre-projet-gcp.taxi_streaming_project`
+CREATE SCHEMA IF NOT EXISTS `taxi-streaming-project.taxi_streaming_project`
 OPTIONS(
   location="EU",
   description="Dataset BigQuery pour analyse taxi streaming"
@@ -14,5 +14,5 @@ SELECT
   schema_name,
   location,
   creation_time
-FROM `votre-projet-gcp.INFORMATION_SCHEMA.SCHEMATA`
+FROM `taxi-streaming-project.INFORMATION_SCHEMA.SCHEMATA`
 WHERE schema_name = 'taxi_streaming_project';

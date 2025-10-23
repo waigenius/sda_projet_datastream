@@ -13,7 +13,7 @@
 
 ## Exécution
 
-1. Modifier `votre-projet-gcp` dans tous les fichiers
+1. Modifier `taxi-streaming-project` dans tous les fichiers
 2. Exécuter dans BigQuery Console
 3. Importer uber-split2.csv
 4. Analyser le CA par cluster et confort

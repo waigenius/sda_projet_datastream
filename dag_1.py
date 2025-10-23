@@ -4,6 +4,7 @@ from airflow.models.dag import DAG
 from airflow.operators.python import PythonOperator
 from airflow.providers.apache.kafka.hooks.kafka import KafkaHook # Nécessaire pour interagir avec Kafka
 import calcul_distance
+
 # --- Configuration des Topics et Connexion ---
 KAFKA_CONN_ID = "kafka_default" 
 SOURCE_TOPIC = "topic_source"
@@ -12,7 +13,7 @@ RESULT_TOPIC = "topic_result"
 MAX_MESSAGES_PER_RUN = 1 
 
 # -----------------------------------------------------------------
-# 1. Tâche : Consommer les Données Brutes (Producteur)
+# 1. Tâche : Consommer les Données Brutes
 # -----------------------------------------------------------------
 
 def consum_kafka(**kwargs):
@@ -198,7 +199,7 @@ def publish_kafka(**kwargs):
 # -----------------------------------------------------------------
 
 with DAG(
-    dag_id='distance_cost_travel',
+    dag_id='dag_1_cost_travel',
     start_date=datetime(2025, 1, 1),
     schedule=None,
     catchup=False,

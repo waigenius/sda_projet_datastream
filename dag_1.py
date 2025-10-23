@@ -26,7 +26,7 @@ def consum_kafka(**kwargs):
     try:
         # Initialisation du Hook Kafka (Consumer KAFKA)
         kafka_hook = KafkaHook(kafka_config_id=KAFKA_CONN_ID)
-        consumer = kafka_hook.get_consumer(topics=[SOURCE_TOPIC], group_id="airflow_processor_group")
+        consumer = kafka_hook.get_consumer(topics=[SOURCE_TOPIC], group_id="dag_1")
         
         # Consommation des messages
         print(f"Tentative de consommation de {MAX_MESSAGES_PER_RUN} message(s) du topic {SOURCE_TOPIC}...")
@@ -51,14 +51,6 @@ def consum_kafka(**kwargs):
     except Exception as e:
         # SIMULATION si vous n'avez pas de cluster Kafka actif pour le test
         print(f"Erreur lors de la consommation (simulation des données) : {e}")
-        simulated_message = {
-            "confort":"standard",
-            "prix_base_per_km": 2.5,
-            "distance_estimee_km": 15.5,
-            "properties-client": {"nomclient": "FALL"},
-            "properties-driver": {"nomDriver": "DIOP"}
-        }
-        messages_to_process.append(json.dumps(simulated_message))
 
 
     if not messages_to_process:
@@ -206,20 +198,20 @@ with DAG(
     tags=['cost_travel', 'distance_travel']
 ) as dag:
     
-    consume_task = PythonOperator(
+    consum_kafka_task= PythonOperator(
         task_id='consum_kafka',
         python_callable=consum_kafka,
     )
     
-    calculate_task = PythonOperator(
+    compute_cost_travel_task= PythonOperator(
         task_id='compute_cost_travel',
         python_callable=compute_cost_travel,
     )
     
-    produce_task = PythonOperator(
+    publish_kafka_task = PythonOperator(
         task_id='publish_kafka',
         python_callable=publish_kafka,
     )
     
     # Définition de l'ordre d'exécution
-    consume_task >> calculate_task >> produce_task
+    consum_kafka_task >> compute_cost_travel_task >> publish_kafka_task

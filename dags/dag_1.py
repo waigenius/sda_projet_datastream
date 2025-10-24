@@ -1,14 +1,15 @@
 import json
 from datetime import datetime
-from airflow.models.dag import DAG
-from airflow.operators.python import PythonOperator
-from airflow.providers.apache.kafka.hooks.kafka import KafkaHook # Nécessaire pour interagir avec Kafka
+from airflow import DAG
+from airflow.operators.python_operator import PythonOperator
+from airflow.providers.apache.kafka.hooks.kafka import KafkaHook
 import calcul_distance
 
 # --- Configuration des Topics et Connexion ---
-KAFKA_CONN_ID = "kafka_default" 
+KAFKA_CONN_ID = 'kfakasda.eastus.cloudapp.azure.com:9092'
 SOURCE_TOPIC = "topic_source"
 RESULT_TOPIC = "topic_result"
+
 # Simuler le nombre de messages à traiter par lot pour cette exécution
 MAX_MESSAGES_PER_RUN = 1 
 

@@ -83,7 +83,6 @@ Le modèle permet de :
 
 - Jiwon
 - Bintou
-- Jordan
 
 ## Prochaines étapes
 

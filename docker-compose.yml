@@ -1,4 +1,4 @@
-version: "3.8"
+
 services:
   kafka-1:
     image: confluentinc/cp-kafka:7.6.1
@@ -83,12 +83,18 @@ services:
     environment:
       - discovery.type=single-node
       - xpack.security.enabled=false
-      - ES_JAVA_OPTS=-Xms768m -Xmx768m 
+      - ES_JAVA_OPTS=-Xms768m -Xmx768m   # 768 Mo de heap (équilibre)
     ulimits:
       memlock: { soft: -1, hard: -1 }
     volumes: [ "esdata:/usr/share/elasticsearch/data" ]
-    ports: ["9200:9200"]                 
+    ports: ["9200:9200"]
+    restart: unless-stopped
     networks: [datastream-net]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9200 >/dev/null || exit 1"]
+      interval: 20s
+      timeout: 5s
+      retries: 10
 
   kibana:
     image: docker.elastic.co/kibana/kibana:8.14.1
@@ -109,25 +115,22 @@ services:
     volumes: [ "pgdata:/var/lib/postgresql/data" ]
     networks: [datastream-net]
 
-  airflow-redis:
-    image: redis:7
-    container_name: airflow-redis
-    networks: [datastream-net]
-
   airflow-web:
     image: apache/airflow:2.9.3
     container_name: airflow-web
-    depends_on: [airflow-db, airflow-redis]
+    depends_on: [airflow-db]
     environment:
-      - AIRFLOW__CORE__EXECUTOR=CeleryExecutor
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
       - AIRFLOW__CORE__LOAD_EXAMPLES=False
       - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@airflow-db:5432/airflow
-      - AIRFLOW__CELERY__RESULT_BACKEND=db+postgresql://airflow:airflow@airflow-db:5432/airflow
-      - AIRFLOW__CELERY__BROKER_URL=redis://airflow-redis:6379/0
-    command: bash -c "airflow db init && airflow users create -u admin -p admin -r Admin -e admin@example.com -f Admin -l User && airflow webserver"
+      - AIRFLOW__WEBSERVER__WORKERS=1                
+      - AIRFLOW__WEBSERVER__WEB_SERVER_WORKER_TIMEOUT=120
+    command: bash -lc "airflow db upgrade && airflow users create -u admin -p admin -r Admin -e admin@example.com -f Admin -l User || true; exec airflow webserver"
     volumes:
       - ./dags:/opt/airflow/dags
+      - ./data:/opt/airflow/data                     
     ports: [ "8080:8080" ]
+    restart: unless-stopped
     networks: [datastream-net]
 
   airflow-scheduler:
@@ -135,13 +138,13 @@ services:
     container_name: airflow-scheduler
     depends_on: [airflow-web]
     environment:
-      - AIRFLOW__CORE__EXECUTOR=CeleryExecutor
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
       - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@airflow-db:5432/airflow
-      - AIRFLOW__CELERY__RESULT_BACKEND=db+postgresql://airflow:airflow@airflow-db:5432/airflow
-      - AIRFLOW__CELERY__BROKER_URL=redis://airflow-redis:6379/0
     command: airflow scheduler
     volumes:
       - ./dags:/opt/airflow/dags
+      - ./data:/opt/airflow/data                     
+    restart: unless-stopped
     networks: [datastream-net]
 
 volumes:

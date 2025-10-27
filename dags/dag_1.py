@@ -1,8 +1,9 @@
 import json
 from datetime import datetime
 from airflow import DAG
+from kafka import KafkaProducer, KafkaConsumer
 from airflow.operators.python_operator import PythonOperator
-from airflow.providers.apache.kafka.hooks.kafka import KafkaHook
+
 import calcul_distance
 
 # --- Configuration des Topics et Connexion ---
@@ -16,53 +17,45 @@ MAX_MESSAGES_PER_RUN = 1
 # -----------------------------------------------------------------
 # 1. Tâche : Consommer les Données Brutes
 # -----------------------------------------------------------------
-
+kafka_servers = (KAFKA_CONN_ID)
 def consum_kafka(**kwargs):
     """
     Consomme un lot de messages du topic source et les pousse vers XCom.
     """
     ti = kwargs['ti']
     messages_to_process = []
-    
-    try:
-        # Initialisation du Hook Kafka (Consumer KAFKA)
-        kafka_hook = KafkaHook(kafka_config_id=KAFKA_CONN_ID)
-        consumer = kafka_hook.get_consumer(topics=[SOURCE_TOPIC], group_id="dag_1")
-        
-        # Consommation des messages
-        print(f"Tentative de consommation de {MAX_MESSAGES_PER_RUN} message(s) du topic {SOURCE_TOPIC}...")
-        
-        # Le consommateur Kafka attend indéfiniment. 
-        # Pour le DAG, on utilise poll avec un timeout pour s'assurer que la tâche se termine.
-        for i in range(MAX_MESSAGES_PER_RUN):
-            message = consumer.poll(timeout=1.0) # Attendre 1 seconde
-            if message is None:
-                print("Fin de messages ou timeout atteint.")
-                break
-            if message.error():
-                print(f"Erreur de consommation: {message.error()}")
-                continue
-                
-            # Décoder la valeur du message
-            message_value = message.value().decode('utf-8')
-            messages_to_process.append(message_value)
-            
-        consumer.close()
-        
-    except Exception as e:
-        # SIMULATION si vous n'avez pas de cluster Kafka actif pour le test
-        print(f"Erreur lors de la consommation (simulation des données) : {e}")
 
+    try:
+        consumer = KafkaConsumer(
+            SOURCE_TOPIC,
+            group_id="dag_1",
+            bootstrap_servers=KAFKA_CONN_ID,
+            auto_offset_reset='earliest',  # Pour lire depuis le début si aucun offset sauvegardé
+            enable_auto_commit=True
+        )
+
+        print(f"Tentative de consommation de {MAX_MESSAGES_PER_RUN} message(s) du topic {SOURCE_TOPIC}...")
+
+        for i, msg in enumerate(consumer):
+            message_value = msg.value.decode('utf-8')
+            print(f"Message lu : {message_value}")
+            messages_to_process.append(message_value)
+
+            if i + 1 >= MAX_MESSAGES_PER_RUN:
+                break
+
+        consumer.close()
+
+    except Exception as e:
+        print(f"Erreur lors de la consommation Kafka : {e}")
 
     if not messages_to_process:
         print("Aucun message à traiter. Arrêt de la tâche.")
         return []
 
-    # Pousser la liste des messages bruts vers XCom
     ti.xcom_push(key='consum_kafka_data', value=messages_to_process)
-    print(f"Consommation terminée. {len(messages_to_process)} message brut poussé vers XCom.")
+    print(f"Consommation terminée. {len(messages_to_process)} message(s) poussé(s) vers XCom.")
     return len(messages_to_process)
-
 
 # -----------------------------------------------------------------
 # 2. Tâche : Calculer le Coût du Trajet
@@ -143,48 +136,56 @@ def compute_cost_travel(**kwargs):
 # -----------------------------------------------------------------
 
 def publish_kafka(**kwargs):
+
     """
     Récupère les messages traités (via XCom) et les produit dans le topic result.
     """
     ti = kwargs['ti']
-    # 1. Récupérer la liste des messages traités
-    processed_messages_list = ti.xcom_pull(task_ids='compute_cost_travel', key='result_cost_travel')
+
+    # 1️⃣ Récupération des messages à produire
+    processed_messages_list = ti.xcom_pull(
+        task_ids='compute_cost_travel',
+        key='result_cost_travel'
+    )
 
     if not processed_messages_list:
         print("Aucun message traité à produire. Arrêt de la tâche.")
         return 0
 
     try:
-        kafka_hook = KafkaHook(kafka_config_id=KAFKA_CONN_ID)
-        
-        # Préparer les messages au format (clé, valeur)
-        messages_to_send = []
-        for message_json in processed_messages_list: 
-            message_dict = json.loads(message_json)
-
-            # Par défaut de ID_course, nous générons cette clé
-            # Permet de ne pas faire la distribution aléatoire dans les partitions 
-            # Rattacher au bon topic
-            client_name = message_dict['properties-client']['nomclient']
-            driver_name = message_dict['properties-driver']['nomDriver']
-            
-            key = f"{client_name}_{driver_name}".encode('utf-8')
-
-            value = message_json.encode('utf-8')
-            messages_to_send.append({'key': key, 'value': value})
-
-        # Utilisation de la méthode générique de production du Hook
-        kafka_hook.produce_messages(
-            topic=RESULT_TOPIC,
-            messages=messages_to_send
+        # 2️⃣ Initialisation du producteur Kafka
+        producer = KafkaProducer(
+            bootstrap_servers=KAFKA_CONN_ID,
+            key_serializer=lambda k: k,  # les clés sont déjà encodées
+            value_serializer=lambda v: v  # les valeurs aussi
         )
 
-        print(f"Production terminée. {len(processed_messages_list)} message(s) envoyé(s) au topic {RESULT_TOPIC}.")
+        # 3️⃣ Préparer et envoyer les messages
+        for message_json in processed_messages_list:
+            try:
+                message_dict = json.loads(message_json)
+
+                client_name = message_dict['properties-client']['nomclient']
+                driver_name = message_dict['properties-driver']['nomDriver']
+                key = f"{client_name}_{driver_name}".encode('utf-8')
+
+                value = message_json.encode('utf-8')
+
+                producer.send(RESULT_TOPIC, key=key, value=value)
+                print(f"Message envoyé pour client {client_name} - chauffeur {driver_name}")
+
+            except Exception as inner_e:
+                print(f"Erreur sur un message : {inner_e}")
+                continue
+
+        # 4️⃣ Attendre la confirmation d'envoi de tous les messages
+        producer.flush()
+
+        print(f"✅ Production terminée : {len(processed_messages_list)} message(s) envoyé(s) au topic {RESULT_TOPIC}.")
         return len(processed_messages_list)
 
     except Exception as e:
-        print(f"Erreur critique lors de la production vers Kafka : {e}")
-        # En production, vous voudriez peut-être émettre une alerte ici
+        print(f"❌ Erreur critique lors de la production vers Kafka : {e}")
         raise
 
 # -----------------------------------------------------------------

@@ -3,6 +3,7 @@ my_env/
 mappings/
 kafka_commands_broker1_topic2.sh
 Dockerfile
-docker-compose_test.yaml
 dags/__pycache__
 logs/
+data_json/
+plugins/__pycache__

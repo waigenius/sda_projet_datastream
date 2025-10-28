@@ -1,0 +1,57 @@
+{"colors": [
+  {
+    "date": "1970-01-01T00:00:00.000Z",
+    "symbol": "€ \"€\"",
+    "code": {
+      "val": 123456,
+      "hex": "#000"
+    },
+    "color": "c006c7e3ab14d686f63524136f1ec7c5e553d839bc01c851e4dc9de2bdbfc589",
+    "category": 109282090837559,
+    "type": "primary"
+  },
+  {
+    "code": {
+      "val": 541,
+      "hex": "#FFF"
+    },
+    "color": "018fa96a44715c90bf93be148069cb28dd45d398f2cc75aa1565311f6e55d174",
+    "category": 111476802532912
+  },
+  {
+    "code": {
+      "val": 4411,
+      "hex": "#FF0"
+    },
+    "color": "b1f51a511f1da0cd348b8f8598db32e61cb963e5fc69e2b41485bf99590ed75a",
+    "category": 109282090837559,
+    "type": "primary"
+  },
+  {
+    "code": {
+      "val": 12453456,
+      "hex": "#00F"
+    },
+    "color": "16477688c0e00699c6cfa4497a3612d7e83c532062b64b250fed8908128ed548",
+    "category": 109282090837559,
+    "type": "primary"
+  },
+  {
+    "code": {
+      "val": 5165,
+      "hex": "#FF0"
+    },
+    "color": "c685a2c9bab235ccdd2ab0ea92281a521c8aaf37895493d080070ea00fc7f5d7",
+    "category": 109282090837559,
+    "type": "primary"
+  },
+  {
+    "code": {
+      "val": 8791,
+      "hex": "#0F0"
+    },
+    "color": "ba4788b226aa8dc2e6dc74248bb9f618cfa8c959e0c26c147be48f6839a0b088",
+    "category": 109282090837559,
+    "type": "secondary"
+  }
+]}

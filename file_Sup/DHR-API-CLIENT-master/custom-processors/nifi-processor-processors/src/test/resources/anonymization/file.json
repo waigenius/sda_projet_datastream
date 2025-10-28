@@ -1,0 +1,59 @@
+{
+  "colors": [
+    {
+      "color": "black",
+      "category": "hue",
+      "type": "primary",
+      "date": "2018-02-21T00:02:35",
+      "symbol": "€ \"€\"",
+      "code": {
+        "val": 123456,
+        "hex": "#000"
+      }
+    },
+    {
+      "color": "white",
+      "category": "value",
+      "code": {
+        "val": 541,
+        "hex": "#FFF"
+      }
+    },
+    {
+      "color": "red",
+      "category": "hue",
+      "type": "primary",
+      "code": {
+        "val": 4411,
+        "hex": "#FF0"
+      }
+    },
+    {
+      "color": "blue",
+      "category": "hue",
+      "type": "primary",
+      "code": {
+        "val": 12453456,
+        "hex": "#00F"
+      }
+    },
+    {
+      "color": "yellow",
+      "category": "hue",
+      "type": "primary",
+      "code": {
+        "val": 5165,
+        "hex": "#FF0"
+      }
+    },
+    {
+      "color": "green",
+      "category": "hue",
+      "type": "secondary",
+      "code": {
+        "val": 8791,
+        "hex": "#0F0"
+      }
+    }
+  ]
+}

@@ -4,3 +4,5 @@ my_env/
 dags/__pycache__/
 
 .env.example
+
+docker-compose.backup.yml

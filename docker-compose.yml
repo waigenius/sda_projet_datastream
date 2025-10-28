@@ -1,0 +1,173 @@
+services:
+  # --- Zookeeper pour Kafka ---
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.1
+    container_name: zookeeper
+    restart: unless-stopped
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2182:2181"
+    networks:
+      - datastream-net
+    volumes:
+      - ./logs/zookeeper:/var/lib/zookeeper/data
+
+  # --- Kafka broker ---
+  kafka:
+    image: confluentinc/cp-kafka:7.6.1
+    container_name: kafka
+    restart: unless-stopped
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: "zookeeper:2181"
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_LOG_RETENTION_HOURS: 72
+    volumes:
+      - ./logs/kafka:/var/lib/kafka/data
+    networks:
+      - datastream-net
+
+  # --- Kafdrop pour visualiser Kafka ---
+  kafdrop:
+    image: obsidiandynamics/kafdrop:latest
+    container_name: kafdrop
+    restart: unless-stopped
+    ports:
+      - "9000:9000"
+    environment:
+      KAFKA_BROKERCONNECT: "kafka:9092"
+    depends_on:
+      - kafka
+    networks:
+      - datastream-net
+
+  # --- Elasticsearch ---
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.14.1
+    container_name: elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms256m -Xmx256m
+    ports:
+      - "9200:9200"
+    volumes:
+      - ./logs/elasticsearch:/usr/share/elasticsearch/data
+    networks:
+      - datastream-net
+
+  # --- Kibana ---
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.14.1
+    container_name: kibana
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    ports:
+      - "5601:5601"
+    depends_on:
+      - elasticsearch
+    networks:
+      - datastream-net
+
+  # --- Airflow DB (Postgres) ---
+  airflow-db:
+    image: postgres:15
+    container_name: airflow-db
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - ./logs/pgdata:/var/lib/postgresql/data
+    networks:
+      - datastream-net
+
+  # --- Airflow Redis ---
+  airflow-redis:
+    image: redis:7
+    container_name: airflow-redis
+    networks:
+      - datastream-net
+
+  # --- Airflow Webserver ---
+  # --- Airflow Webserver ---
+  airflow-web:
+    build: .
+    image: custom-airflow:latest
+    container_name: airflow-web
+    depends_on:
+      - airflow-db
+      - airflow-redis
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=CeleryExecutor
+      - AIRFLOW__CORE__LOAD_EXAMPLES=False
+      - AIRFLOW__CORE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@airflow-db:5432/airflow
+      - AIRFLOW__CELERY__RESULT_BACKEND=redis://airflow-redis:6379/0
+      - AIRFLOW__CELERY__BROKER_URL=redis://airflow-redis:6379/0
+    command: bash -c "airflow db migrate && airflow users create -u admin -p exemplemotdepasse -r Admin -e mail@gmail.com -f prenom -l nom && airflow webserver"
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./logs/airflow:/opt/airflow/logs
+    ports:
+      - "8081:8080"
+    networks:
+      - datastream-net
+
+  # --- Airflow Scheduler ---
+  airflow-scheduler:
+    build: .
+    image: custom-airflow:latest
+    container_name: airflow-scheduler
+    depends_on:
+      - airflow-web
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=CeleryExecutor
+      - AIRFLOW__CORE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@airflow-db:5432/airflow
+      - AIRFLOW__CELERY__RESULT_BACKEND=redis://airflow-redis:6379/0
+      - AIRFLOW__CELERY__BROKER_URL=redis://airflow-redis:6379/0
+    command: airflow scheduler
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./logs/airflow:/opt/airflow/logs
+    networks:
+      - datastream-net
+  # --- Airflow Worker pour CeleryExecutor ---
+  airflow-worker:
+    build: .
+    image: custom-airflow:latest
+    container_name: airflow-worker
+    depends_on:
+      - airflow-web
+      - airflow-redis
+      - airflow-db
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=CeleryExecutor
+      - AIRFLOW__CORE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@airflow-db:5432/airflow
+      - AIRFLOW__CELERY__RESULT_BACKEND=redis://airflow-redis:6379/0
+      - AIRFLOW__CELERY__BROKER_URL=redis://airflow-redis:6379/0
+    command: celery worker
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./logs/airflow:/opt/airflow/logs
+    networks:
+      - datastream-net
+# --- Volumes persistants ---
+volumes:
+  kafka-data:
+  esdata:
+  pgdata:
+
+# --- Réseau Docker ---
+networks:
+  datastream-net:
+    driver: bridge

@@ -1,2 +1,6 @@
 my_env/
 .env
+
+dags/__pycache__/
+
+.env.example

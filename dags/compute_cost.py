@@ -1,90 +1,144 @@
 from __future__ import annotations
-import json, math, time, sys, signal
-from datetime import datetime
+import json
+import os
+from datetime import datetime, timedelta
+from typing import Any, Dict, List
+
 from airflow import DAG
 from airflow.operators.python import PythonOperator
+from confluent_kafka import Consumer, Producer
 
-BOOTSTRAP = "kafka-1:9092,kafka-2:9092,kafka-3:9092"
-IN_TOPIC  = "rides.source"
-OUT_TOPIC = "rides.result"
-GROUP_ID  = "compute_cost_v1"
-BATCH_MAX = 500
-IDLE_QUIT_SEC = 5
+# ==== Config ====
+KAFKA_BROKER = os.getenv("KAFKA_BROKER", "kafka:9092")
+TOPIC_SOURCE = os.getenv("KAFKA_TOPIC_SOURCE", "source")
+TOPIC_RESULT = os.getenv("KAFKA_TOPIC_RESULT", "result")
 
-def haversine_m(p1, p2):
-    R = 6371000.0
-    phi1 = math.radians(p1["lat"]); phi2 = math.radians(p2["lat"])
-    dphi = phi2 - phi1
-    dlambda = math.radians(p2["lon"] - p1["lon"])
-    a = math.sin(dphi/2)**2 + math.cos(phi1)*math.cos(phi2)*math.sin(dlambda/2)**2
-    return 2*R*math.atan2(math.sqrt(a), math.sqrt(1-a))
+GROUP_CONSUME = os.getenv("DAG1_GROUP_CONSUME", "airflow-dag1-consume")
+MAX_MESSAGES = int(os.getenv("DAG1_MAX_MESSAGES", "500"))
+POLL_TIMEOUT = float(os.getenv("DAG1_POLL_TIMEOUT", "0.2"))
+RUN_WINDOW_SECONDS = int(os.getenv("DAG1_RUN_WINDOW_SECONDS", "30"))
 
-def compute_cost_eur(distance_m: float, comfort: str) -> float:
-    base = {"low": 0.8, "medium": 1.0, "high": 1.4}.get(comfort, 1.0)
-    return round(2.0 + base * (distance_m/1000.0) * 1.2, 2)
+# Règles de coût
+PRICING = {
+    "low":    {"base": 1.5, "per_km": 0.8,  "per_min": 0.2},
+    "medium": {"base": 2.0, "per_km": 1.1,  "per_min": 0.3},
+    "high":   {"base": 3.0, "per_km": 1.6,  "per_min": 0.45},
+}
 
-def task_compute_cost():
-    from confluent_kafka import Consumer, Producer
+# ==== Task 1: consume from Kafka (topic source) ====
+def task_consume(**_context) -> List[Dict[str, Any]]:
     consumer = Consumer({
-        "bootstrap.servers": BOOTSTRAP,
-        "group.id": GROUP_ID,
+        "bootstrap.servers": KAFKA_BROKER,
+        "group.id": GROUP_CONSUME,
         "auto.offset.reset": "earliest",
         "enable.auto.commit": True,
-        "session.timeout.ms": 10000,
     })
-    producer = Producer({"bootstrap.servers": BOOTSTRAP})
+    consumer.subscribe([TOPIC_SOURCE])
+    batch: List[Dict[str, Any]] = []
+    start = datetime.utcnow()
 
-    running = True
-    def _shutdown(sig, frame):
-        nonlocal running
-        running = False
-    signal.signal(signal.SIGTERM, _shutdown)
-    signal.signal(signal.SIGINT, _shutdown)
-
-    consumer.subscribe([IN_TOPIC])
-    processed = 0
-    t0_idle = time.time()
     try:
-        while running and processed < BATCH_MAX:
-            msg = consumer.poll(0.5)
+        while len(batch) < MAX_MESSAGES and (datetime.utcnow() - start).total_seconds() < RUN_WINDOW_SECONDS:
+            msg = consumer.poll(POLL_TIMEOUT)
             if msg is None:
-                if time.time() - t0_idle > IDLE_QUIT_SEC and processed > 0:
-                    break
                 continue
             if msg.error():
-                print(f"[WARN] consume error: {msg.error()}", file=sys.stderr); continue
-            t0_idle = time.time()
+                print(f"[ConsumKafka] Kafka error: {msg.error()}")
+                continue
             try:
-                payload = json.loads(msg.value())
-                pickup = payload["pickup"]; dropoff = payload["dropoff"]
-                comfort = str(payload.get("comfort", "medium"))
-                dist_m = haversine_m(pickup, dropoff)
-                cost = compute_cost_eur(dist_m, comfort)
-                out_evt = {
-                    **payload,
-                    "distance_m": round(dist_m, 2),
-                    "cost_eur": cost,
-                    "agent_timestamp": datetime.utcnow().isoformat(timespec="milliseconds") + "Z",
-                }
-                producer.produce(OUT_TOPIC, json.dumps(out_evt).encode("utf-8"))
-                processed += 1
-                if processed % 100 == 0:
-                    producer.flush(2)
+                rec = json.loads(msg.value().decode("utf-8"))
+                batch.append(rec)
             except Exception as e:
-                print(f"[ERROR] processing failed: {e}", file=sys.stderr)
-        producer.flush(5)
-        print(f"[INFO] processed={processed}")
+                print(f"[ConsumKafka] Bad message: {e}")
     finally:
         consumer.close()
 
+    print(f"[ConsumKafka] Pulled {len(batch)} messages from '{TOPIC_SOURCE}'")
+    return batch  # envoyé en XCom
+
+# ==== Task 2: compute cost ====
+def compute_cost(record: Dict[str, Any]) -> float:
+    comfort = record.get("comfort") or record.get("confort") or "low"
+    r = PRICING.get(comfort, PRICING["low"])
+    distance = float(record.get("distance_km") or record.get("distance") or 0.0)
+    duration = float(record.get("duration_min") or record.get("duree") or 0.0)
+    return round(r["base"] + r["per_km"] * distance + r["per_min"] * duration, 2)
+
+def task_compute(ti, **_context) -> List[Dict[str, Any]]:
+    batch: List[Dict[str, Any]] = ti.xcom_pull(task_ids="ConsumKafka")
+    if not batch:
+        print("[ComputCostTravel] Nothing to compute.")
+        return []
+
+    out: List[Dict[str, Any]] = []
+    for rec in batch:
+        try:
+            rec = dict(rec)  # shallow copy
+            rec["computed_cost"] = compute_cost(rec)
+            rec["compute_ts"] = datetime.utcnow().isoformat(timespec="seconds") + "Z"
+            out.append(rec)
+        except Exception as e:
+            print(f"[ComputCostTravel] Failed to compute: {e}")
+
+    print(f"[ComputCostTravel] Computed {len(out)} / {len(batch)} messages")
+    return out
+
+# ==== Task 3: publish to Kafka (topic result) ====
+def task_publish(ti, **_context) -> int:
+    batch: List[Dict[str, Any]] = ti.xcom_pull(task_ids="ComputCostTravel")
+    if not batch:
+        print("[PublishKafka] Nothing to publish.")
+        return 0
+
+    producer = Producer({"bootstrap.servers": KAFKA_BROKER})
+    sent = 0
+
+    def _cb(err, _msg):
+        if err:
+            print(f"[PublishKafka] Delivery failed: {err}")
+
+    for rec in batch:
+        try:
+            producer.produce(TOPIC_RESULT, json.dumps(rec).encode("utf-8"), callback=_cb)
+            sent += 1
+        except Exception as e:
+            print(f"[PublishKafka] Produce error: {e}")
+        producer.poll(0)
+
+    producer.flush()
+    print(f"[PublishKafka] Published {sent} messages to '{TOPIC_RESULT}'")
+    return sent
+
+# ==== DAG definition ====
+default_args = {"owner": "datastream", "depends_on_past": False, "retries": 0}
+
 with DAG(
-    dag_id="compute_cost",
-    start_date=datetime(2024, 1, 1),
-    schedule=None,
+    dag_id="compute_cost_v2",
+    default_args=default_args,
+    start_date=datetime(2025, 1, 1),
+    schedule_interval="*/2 * * * *",   # toutes les 2 minutes
     catchup=False,
-    default_args={"owner": "datastream"},
+    max_active_runs=1,
+    dagrun_timeout=timedelta(minutes=5),
+    tags=["kafka", "compute_cost"],
 ) as dag:
-    PythonOperator(
-        task_id="compute_cost_batch",
-        python_callable=task_compute_cost,
+
+    t1 = PythonOperator(
+        task_id="ConsumKafka",
+        python_callable=task_consume,
+        provide_context=True,
     )
+
+    t2 = PythonOperator(
+        task_id="ComputCostTravel",
+        python_callable=task_compute,
+        provide_context=True,
+    )
+
+    t3 = PythonOperator(
+        task_id="PublishKafka",
+        python_callable=task_publish,
+        provide_context=True,
+    )
+
+    t1 >> t2 >> t3

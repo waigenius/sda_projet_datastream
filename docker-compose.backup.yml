@@ -1,34 +1,27 @@
-# docker-compose.yml — stack Datastream (Kafka KRaft + Airflow + ES/Kibana + Producer)
+# docker-compose.yml (clean, no "version:")
 services:
 
   kafka:
     image: apache/kafka:3.8.0
     container_name: kafka
     ports:
-      - "9092:9092"     # pour les autres conteneurs (PLAINTEXT://kafka:9092)
-      - "29092:29092"   # pour tests locaux (PLAINTEXT_HOST://localhost:29092)
+      - "9092:9092"
     environment:
-      # --- KRaft single-node (sans ZooKeeper) ---
-      KAFKA_PROCESS_ROLES: broker,controller
-      KAFKA_NODE_ID: "1"
-      KAFKA_LISTENERS: PLAINTEXT://:9092,PLAINTEXT_HOST://:29092,CONTROLLER://:9093
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT,CONTROLLER:PLAINTEXT
-      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
-      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
-      KAFKA_LOG_DIRS: /var/lib/kafka/data
-
-      # --- CRUCIAL en single-node ---
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: "1"
-      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: "1"
-      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: "1"
+      # --- KRaft single-node ---
+      KAFKA_CFG_PROCESS_ROLES: broker,controller
+      KAFKA_CFG_NODE_ID: "1"
+      KAFKA_CFG_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_CFG_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_CFG_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CFG_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_CFG_LOG_DIRS: /tmp/kraft-combined-logs
     networks: [projnet]
 
   create_topics:
     image: apache/kafka:3.8.0
     container_name: create-topics
-    # Partage la pile réseau du broker → on parle à localhost:9092 (pas de DNS)
+    # Même pile réseau que le broker → on parle à localhost:9092
     network_mode: "service:kafka"
     depends_on: [kafka]
     entrypoint: ["/bin/bash","/app/create-topics.sh"]
@@ -113,7 +106,7 @@ services:
       KAFKA_TOPIC_SOURCE: source
       PRODUCER_RATE_PER_SEC: "5"
       DATA_SCHEMA_PATH: /app/data/data_projet.json
-      PRODUCER_SKIP_VALIDATION: "true"   # on désactive tant que le schéma FR/EN n'est pas aligné
+      PRODUCER_SKIP_VALIDATION: "true"   # désactive la validation tant que le schéma FR/EN n'est pas aligné
     volumes:
       - ./producer:/app/producer
       - ./data:/app/data

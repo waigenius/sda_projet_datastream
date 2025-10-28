@@ -17,7 +17,7 @@ MAX_MESSAGES_PER_RUN = 1
 # -----------------------------------------------------------------
 # 1. Tâche : Consommer les Données Brutes
 # -----------------------------------------------------------------
-kafka_servers = (KAFKA_CONN_ID)
+#kafka_servers = (KAFKA_CONN_ID)
 def consum_kafka(**kwargs):
     """
     Consomme un lot de messages du topic source et les pousse vers XCom.

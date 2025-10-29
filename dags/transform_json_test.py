@@ -32,6 +32,7 @@ ELASTIC_URL = os.getenv("ELASTIC_URL", "http://elasticsearch:9200")
 ES_INDEX_PREFIX = os.getenv("ES_INDEX_PREFIX", "trips")
 
 EXPORT_DIR = Path(os.getenv("EXPORT_DIR", "/exports"))
+PRESENTATION_DIR = Path(os.getenv("PRESENTATION_DIR", "/exports/presentation"))
 # Upload GCS optionnel : nécessite d'avoir installé google-cloud-storage + credentials
 GCS_BUCKET = os.getenv("GCS_BUCKET", "").strip()
 GCS_PREFIX = os.getenv("GCS_PREFIX", "raw/trips").strip()  # préfixe dossier dans le bucket
@@ -124,47 +125,46 @@ def task_transform(ti, **_) -> List[Dict[str, Any]]:
     print(f"[TransformJson] Transformed {len(out)} docs")
 
     # ==========================================================
-    # Création d'une version simplifiée (lisible) pour le JSON local
+    # Création d'une version simplifiée (présentation attendue)
     # ==========================================================
     simplified_list = []
     for d in out:
-        # On cherche les valeurs attendues, qu'elles soient "flat" ou imbriquées
         simp = {
             "nomclient": d.get("properties-client_nomclient") or d.get("nomclient", ""),
             "telephoneClient": d.get("properties-client_telephoneClient") or d.get("telephoneClient", ""),
-            "locationClient": [float(d.get("properties-client_location").split(",")[0]),
-                   float(d.get("properties-client_location").split(",")[1])]
-                   if d.get("properties-client_location") else None,
-            "distance": d.get("distance", 0),
+            # on remet les locations au format "lon, lat"
+            "locationClient": d.get("properties-client_location") or "",
+            "distance": float(d.get("distance", 0)),
             "confort": d.get("confort", ""),
-            "prix_travel": d.get("prix_travel", 0),
+            "prix_travel": float(d.get("prix_travel", 0)),
             "nomDriver": d.get("properties-driver_nomDriver") or d.get("nomDriver", ""),
-            "locationDriver": [float(d.get("properties-driver_location").split(",")[0]),
-                   float(d.get("properties-driver_location").split(",")[1])]
-                   if d.get("properties-driver_location") else None,
+            "locationDriver": d.get("properties-driver_location") or "",
             "telephoneDriver": d.get("properties-driver_telephoneDriver") or d.get("telephoneDriver", ""),
             "agent_timestamp": d.get("agent_timestamp", ""),
         }
         simplified_list.append(simp)
 
     # ==========================================================
-    # Écriture JSON locale (format attendu)
+    # Écriture JSON locale (format présentation)
     # ==========================================================
     try:
         json_dir = Path("/exports/json")
         json_dir.mkdir(parents=True, exist_ok=True)
-        filename = f"transform_simplified_{datetime.utcnow():%Y%m%dT%H%M%S}.json"
+        filename = f"transform_presentation_{datetime.utcnow():%Y%m%dT%H%M%S}.json"
         file_path = json_dir / filename
 
-        # Si un seul doc, on écrit juste l’objet au lieu d’une liste
+        # Un seul objet => on écrit directement l'objet, sinon une liste
         to_dump = simplified_list[0] if len(simplified_list) == 1 else simplified_list
 
         with open(file_path, "w", encoding="utf-8") as f:
             json.dump(to_dump, f, ensure_ascii=False, indent=3)
 
-        print(f"[TransformJson] Saved simplified JSON to {file_path}")
+        print(f"[TransformJson] Saved presentation JSON to {file_path}")
     except Exception as e:
-        print(f"[TransformJson] WARNING: failed to write simplified JSON: {e}")
+        print(f"[TransformJson] WARNING: failed to write presentation JSON: {e}")
+
+    # 🔁 XCom push de la version présentation (optionnelle)
+    ti.xcom_push(key="pretty_docs", value=simplified_list)
 
     return out
 

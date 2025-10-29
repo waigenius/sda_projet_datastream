@@ -1,6 +1,8 @@
 # 📘 Projet Datastream
 
-## 🧩 ObjectifCe projet met en place une chaîne complète de traitement de données en temps réel :
+## 🧩 Objectif
+
+Ce projet met en place une chaîne complète de traitement de données en temps réel :
 Kafka → Airflow → Elasticsearch → Kibana → Google Cloud Storage (GCS) → BigQuery
 
 L’objectif est de simuler des trajets (rides), de calculer leur coût via Airflow,
@@ -160,4 +162,4 @@ OPTIONS (
 ## 👤 Auteur
 Projet développé sur toutes les branches du repo  
 **Auteur :** Groupe (Waï, Bintou, Patricia, Jiwon & Ismaël)
-Dépôt principal : [waigenius/sda_projet_datastream](https://github.com/waigenius/sda_projet_datastream)
+**Dépôt principal :** [waigenius/sda_projet_datastream](https://github.com/waigenius/sda_projet_datastream)

@@ -1,8 +1,10 @@
 # 📘 Projet Datastream
 
-## 🧩 Objectif
-Ce projet met en place une chaîne complète de traitement de données en temps réel : Kafka → Airflow → Elasticsearch → Kibana.
-L’objectif est de simuler des trajets (`rides`), de calculer leur coût via Airflow, puis de les indexer dans Elasticsearch pour analyse et visualisation.
+## 🧩 ObjectifCe projet met en place une chaîne complète de traitement de données en temps réel :
+Kafka → Airflow → Elasticsearch → Kibana → Google Cloud Storage (GCS) → BigQuery
+
+L’objectif est de simuler des trajets (rides), de calculer leur coût via Airflow,
+puis de les indexer dans Elasticsearch pour la visualisation et stocker dans GCS / BigQuery pour l’analyse historique.
 
 ---
 
@@ -11,16 +13,17 @@ L’objectif est de simuler des trajets (`rides`), de calculer leur coût via Ai
 ```
 Producer (Python)
     ↓
-Kafka (rides.source / rides.result)
+Kafka (source / result)
     ↓
 Airflow DAG 1: compute_cost
     → calcule distance + coût
-    → republie dans rides.result
+    → republie dans Kafka (result)
     ↓
 Airflow DAG 2: transform_json
-    → aplatit + ajoute un horodatage + envoie dans Elasticsearch
-    ↓
-Elasticsearch → Kibana (visualisation)
+    → aplatit + ajoute un horodatage
+    → envoie vers :
+        ├── Elasticsearch → Kibana (visualisation temps réel)
+        └── GCS (stockage durable) → BigQuery (analytique)
 ```
 
 ---
@@ -33,7 +36,8 @@ Elasticsearch → Kibana (visualisation)
 | Airflow Web UI | 8080 | Orchestration des DAGs |
 | Elasticsearch | 9200 | Indexation et recherche |
 | Kibana | 5601 | Interface graphique |
-| PostgreSQL + Redis | internes | Backend Airflow |
+| GCS (via SDK) | - | Stockage cloud des exports |
+| BigQuery (via API) | - | Entrepôt des données |
 
 ---
 
@@ -41,8 +45,12 @@ Elasticsearch → Kibana (visualisation)
 - Docker Desktop
 - VS Code ou terminal
 - Port 8080 et 5601 libres
-- (Optionnel) `jq` pour formater le JSON
-
+- Compte Google Cloud avec :
+	•	Un bucket GCS
+	•	Une clé de service (JSON) montée dans docker-compose.yml
+	•	Les rôles :
+	•	Storage Object Admin
+	•	BigQuery Data Editor
 ---
 
 ## 🏗️ Installation
@@ -50,7 +58,11 @@ Elasticsearch → Kibana (visualisation)
 ```bash
 git clone -b branche-cic https://github.com/waigenius/sda_projet_datastream.git
 cd sda_projet_datastream/projet-ds
+
+# Crée le réseau Docker s’il n’existe pas
 docker network create datastream-net
+
+# Lancement complet de la stack
 docker compose up -d
 ```
 
@@ -108,6 +120,34 @@ curl -s "http://localhost:9200/rides-000001/_search?size=3&pretty" | jq '.hits.h
 
 ---
 
+## Création du bucket GCS
+
+```bash
+docker exec -it airflow bash -lc 'python - <<PY
+from google.cloud import storage
+client = storage.Client()
+b = client.bucket("gcs-trips-waigenius")
+b.location = "EU"
+b.iam_configuration.uniform_bucket_level_access_enabled = True
+client.create_bucket(b)
+print("✅ Bucket créé : gcs-trips-waigenius")
+PY'
+```
+
+---
+
+## Création de la table BigQuery
+
+```bash
+CREATE OR REPLACE EXTERNAL TABLE `myproj_ds.trips_ds.trips_ext`
+OPTIONS (
+  format = 'PARQUET',
+  uris = ['gs://gcs-trips-waigenius/raw/trips/year=*/month=*/day=*/hour=*/*.parquet']
+);
+```
+
+---
+
 ## 🧩 Dépannage
 | Problème | Cause probable | Solution |
 |-----------|----------------|-----------|
@@ -118,6 +158,6 @@ curl -s "http://localhost:9200/rides-000001/_search?size=3&pretty" | jq '.hits.h
 ---
 
 ## 👤 Auteur
-Projet développé sur la **branche `branche-cic`**  
-**Auteur :** [@ccheikh-ismael](https://github.com/ccheikh-ismael)  
+Projet développé sur toutes les branches du repo  
+**Auteur :** Groupe (Waï, Bintou, Patricia, Jiwon & Ismaël)
 Dépôt principal : [waigenius/sda_projet_datastream](https://github.com/waigenius/sda_projet_datastream)

@@ -1,91 +1,209 @@
-# Documentation BigQuery - Projet Taxi Streaming
+# 🎯 BigQuery ML - Guide d'utilisation (Jiwon)
 
-## Vue d'ensemble
+## 📋 Vue d'ensemble
 
-Ce document décrit l'implémentation BigQuery pour le projet de streaming de données de taxi, incluant le Data Warehouse, le Machine Learning avec K-Means, et l'analyse des revenus.
+Ce guide explique comment:
+1. Uploader les fichiers Parquet vers GCS
+2. Créer une table externe BigQuery
+3. Entraîner un modèle K-Means (8 clusters)
+4. Analyser le chiffre d'affaires par cluster et type de confort
 
-## Architecture
+---
 
-- **Google Cloud Storage (GCS)** : Stockage des fichiers Parquet
-- **BigQuery External Table** : Lecture des données depuis GCS
-- **BigQuery ML** : Modèle K-Means avec 8 clusters
-- **Analyse** : Calcul du chiffre d'affaires par cluster et type de confort
+## 🔑 Prérequis
 
-## Fichiers SQL
+- ✅ Projet GCP: `taxi-streaming-project`
+- ✅ Service Account: `bigquery-uploader@taxi-streaming-project.iam.gserviceaccount.com`
 
-### 01_setup.sql
-Création du dataset BigQuery dans la région europe-west9 (Paris).
 
-### 02_external_table.sql
-Création d'une table externe pointant vers le bucket GCS `taxi-streaming-data-bucket`.
+---
 
-### 03_kmeans_model.sql
-Création d'un modèle K-Means avec 8 clusters basé sur les coordonnées géographiques (longitude, latitude) des données Uber de référence.
+## 📦 Étape 1: Installation des dépendances
 
-### 04_revenue_analysis.sql
-Requête d'analyse calculant le chiffre d'affaires par cluster et type de confort (High, Medium, Standard).
-
-## Configuration GCP
-
-**Projet :** `taxi-streaming-project`  
-**Région :** `europe-west9` (Paris)  
-**Dataset :** `taxi_dataset`  
-**Bucket :** `taxi-streaming-data-bucket`
-
-## Modèle K-Means
-
-- **Nombre de clusters :** 8
-- **Variables :** longitude, latitude
-- **Distance :** Euclidienne
-- **Données d'entraînement :** uber-split2.csv
-
-## Utilisation
-
-### 1. Exécuter les scripts SQL dans l'ordre
-```sql
--- 1. Créer le dataset
-source sql/01_setup.sql
-
--- 2. Créer la table externe
-source sql/02_external_table.sql
-
--- 3. Créer le modèle K-Means
-source sql/03_kmeans_model.sql
-
--- 4. Analyser les revenus
-source sql/04_revenue_analysis.sql
+```bash
+# Dans le terminal VSCode
+pip install google-cloud-storage google-cloud-bigquery
 ```
 
-### 2. Scripts Python
+---
 
-**Génération de données de test :**
+## ☁️ Étape 2: Upload des fichiers Parquet vers GCS
+
+### 2.1 Copier le script dans votre projet
+
 ```bash
-python scripts/generate_test_data.py
+# Copier upload_to_gcs.py dans votre dossier scripts/
+cp upload_to_gcs.py scripts/
 ```
 
-**Upload vers GCS :**
-```bash
-# Définir les credentials
-$env:GOOGLE_APPLICATION_CREDENTIALS="path\to\key.json"
+### 2.2 Vérifier la configuration
 
-# Upload
+Ouvrez `scripts/upload_to_gcs.py` et vérifiez:
+
+```python
+PROJECT_ID = "taxi-streaming-project"  # ✅ OK
+BUCKET_NAME = "datastream-rides-bucket"  # Nom de votre bucket
+KEY_FILE = "taxi-streaming-project-ca97054b822a.json"  # ✅ OK
+```
+
+### 2.3 Exécuter l'upload
+
+```bash
 python scripts/upload_to_gcs.py
 ```
 
-## Résultats
+**Sortie attendue:**
+```
+============================================================
+📤 Upload Parquet → GCS
+============================================================
+📦 Création du bucket 'datastream-rides-bucket'...
+✅ Bucket créé: gs://datastream-rides-bucket/
 
-Le modèle permet de :
-- Segmenter géographiquement les courses de taxi en 8 zones
-- Analyser le chiffre d'affaires par zone et niveau de confort
-- Identifier les zones les plus rentables
+🚀 Upload de 42 fichiers parquet vers gs://datastream-rides-bucket/
 
-## Équipe BigQuery
+✅ year=2025/month=10/day=29/hour=00/part-1761696201.parquet
+✅ year=2025/month=10/day=29/hour=00/part-1761696383.parquet
+...
 
-- Jiwon
-- Bintou
+✨ Upload terminé: 42/42 fichiers uploadés avec succès!
+📍 URI: gs://datastream-rides-bucket/year=*/month=*/day=*/hour=*/*.parquet
+```
 
-## Prochaines étapes
+---
 
-- Intégration avec le pipeline NiFi (équipe Airflow)
-- Visualisation dans Kibana
-- Analyse en temps réel des données streaming
+## 📊 Étape 3: Configuration BigQuery
+
+### 3.1 Uploader uber-split2.csv
+
+**Option A: Via l'interface BigQuery Console**
+1. Allez sur https://console.cloud.google.com/bigquery
+2. Sélectionnez le projet `taxi-streaming-project`
+3. Créez le dataset `datastream_dataset` (si nécessaire)
+4. Cliquez sur "Créer une table"
+5. Source: Upload → Sélectionnez `data/uber-split2.csv`
+6. Destination: 
+   - Dataset: `datastream_dataset`
+   - Table: `uber_data`
+7. Schéma:
+   - `lat`: FLOAT
+   - `lon`: FLOAT
+   - `datetime`: STRING
+   - `base`: STRING
+
+**Option B: Via la ligne de commande**
+
+```bash
+bq load \
+  --source_format=CSV \
+  --skip_leading_rows=1 \
+  --project_id=taxi-streaming-project \
+  datastream_dataset.uber_data \
+  data/uber-split2.csv \
+  lat:FLOAT,lon:FLOAT,datetime:STRING,base:STRING
+```
+
+### 3.2 Exécuter le script SQL
+
+1. Ouvrez BigQuery Console: https://console.cloud.google.com/bigquery
+2. Ouvrez le fichier `bigquery_ml_setup.sql`
+3. Exécutez chaque section une par une (commentée avec `Étape X`)
+
+**OU** exécutez tout le script:
+
+```bash
+bq query --project_id=taxi-streaming-project --use_legacy_sql=false < bigquery_ml_setup.sql
+```
+
+---
+
+## 📈 Étape 4: Résultats attendus
+
+### 4.1 Vérification des données
+
+```sql
+-- Nombre total de trajets
+SELECT COUNT(*) FROM `taxi-streaming-project.datastream_dataset.rides_external`;
+-- Résultat attendu: ~40-50 trajets
+```
+
+### 4.2 Visualisation des clusters
+
+```sql
+-- 8 clusters créés avec leurs centroïdes
+SELECT CENTROID_ID, COUNT(*) as nb_points
+FROM ML.PREDICT(...)
+GROUP BY CENTROID_ID;
+```
+
+### 4.3 Chiffre d'affaires par cluster
+
+```sql
+-- CA total par cluster et type de confort
+SELECT 
+  cluster_id,
+  type_confort,
+  chiffre_affaire_total,
+  nb_trajets
+FROM (...)
+ORDER BY chiffre_affaire_total DESC;
+```
+
+**Exemple de sortie:**
+
+| cluster_id | type_confort | nb_trajets | chiffre_affaire_total | prix_moyen |
+|------------|--------------|------------|-----------------------|------------|
+| 3          | high         | 15         | 4523.50               | 301.57     |
+| 1          | standard     | 22         | 3890.75               | 176.85     |
+| 5          | low          | 8          | 1200.00               | 150.00     |
+
+---
+
+## 🐛 Dépannage
+
+### Erreur: "Bucket n'existe pas"
+```bash
+# Créer le bucket manuellement
+gsutil mb -p taxi-streaming-project gs://datastream-rides-bucket/
+```
+
+### Erreur: "Permission denied"
+```bash
+# Vérifier les permissions du service account
+gcloud projects get-iam-policy taxi-streaming-project \
+  --flatten="bindings[].members" \
+  --filter="bindings.members:bigquery-uploader@*"
+```
+
+### Erreur: "Table not found"
+```bash
+# Vérifier que uber_data existe
+bq show taxi-streaming-project:datastream_dataset.uber_data
+```
+
+---
+
+## ✅ Checklist finale
+
+- [ ] Fichiers Parquet uploadés vers GCS
+- [ ] Bucket `datastream-rides-bucket` créé
+- [ ] Dataset BigQuery `datastream_dataset` créé
+- [ ] Table externe `rides_external` créée et accessible
+- [ ] Table `uber_data` chargée avec CSV
+- [ ] Modèle K-Means `kmeans_location_model` entraîné
+- [ ] Requête de CA par cluster exécutée avec succès
+
+---
+
+## 📞 Support
+
+En cas de problème:
+1. Vérifiez les logs dans BigQuery Query History
+2. Vérifiez les permissions IAM du service account
+3. Consultez la documentation GCP: https://cloud.google.com/bigquery/docs/kmeans-tutorial
+
+---
+
+**Auteur**: Jiwon  
+**Date**: 2025-10-29  
+**Projet**: Datastream Taxi Streaming Project

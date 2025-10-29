@@ -1,0 +1,20 @@
+{
+  "data": [
+    {
+      "properties-client": {
+        "nomclient": "FALL",
+        "telephoneClient": "060111222",
+        "location": "2.3522, 48.8566"
+      },
+      "distance": 944.4935515617553,
+      "properties-driver": {
+        "nomDriver": "DIOP",
+        "location": "3.7038, 40.4168",
+        "telephoneDriver": "077001122"
+      },
+      "prix_base_per_km": 3.0,
+      "confort": "high",
+      "prix_travel": 2833.48
+    }
+  ]
+}

@@ -75,9 +75,7 @@ def _gcs_upload_if_enabled(local_file: Path, gcs_uri_path: str) -> Optional[str]
 #     TASKS
 # =======================
 def task_consume(**_) -> List[Dict[str, Any]]:
-    """
-    Lit un batch sur 'result' et déballe les enveloppes {"data":[...]}.
-    """
+    """Lit un batch sur le topic 'result' et renvoie la liste brute."""
     consumer = Consumer({
         "bootstrap.servers": KAFKA_BROKER,
         "group.id": GROUP_CONSUME,
@@ -98,22 +96,17 @@ def task_consume(**_) -> List[Dict[str, Any]]:
                 print(f"[ConsumKafka] Kafka error: {msg.error()}")
                 continue
             try:
-                obj = json.loads(msg.value().decode("utf-8"))
-                # ❶ déballage {"data":[…]}
-                if isinstance(obj, dict) and "data" in obj and isinstance(obj["data"], list):
-                    docs.extend(obj["data"])
-                # ❷ tolère un document unique
-                elif isinstance(obj, dict):
-                    docs.append(obj)
+                docs.append(json.loads(msg.value().decode("utf-8")))
             except Exception as e:
                 print(f"[ConsumKafka] Bad message: {e}")
     finally:
         consumer.close()
 
-    print(f"[ConsumKafka] Pulled {len(docs)} documents after unwrapping.")
+    print(f"[ConsumKafka] Pulled {len(docs)} messages from '{TOPIC_RESULT}'")
     return docs
 
 def task_transform(ti, **_) -> List[Dict[str, Any]]:
+    """Aplati le JSON et ajoute agent_timestamp."""
     raw_docs: List[Dict[str, Any]] = ti.xcom_pull(task_ids="ConsumKafka") or []
     if not raw_docs:
         print("[TransformJson] Nothing to transform.")

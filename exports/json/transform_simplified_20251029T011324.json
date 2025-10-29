@@ -1,0 +1,18 @@
+{
+   "nomclient": "SOW",
+   "telephoneClient": "0677889900",
+   "locationClient": [
+      2.3522,
+      48.8566
+   ],
+   "distance": 877.4633259175432,
+   "confort": "standard",
+   "prix_travel": 1754.93,
+   "nomDriver": "DIALLO",
+   "locationDriver": [
+      13.405,
+      52.52
+   ],
+   "telephoneDriver": "075554433",
+   "agent_timestamp": "2025-10-29T01:13:24Z"
+}

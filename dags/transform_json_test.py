@@ -1,9 +1,9 @@
 from __future__ import annotations
-import json
-import os
 from pathlib import Path
-from datetime import datetime, timedelta
+import json
 from typing import Any, Dict, List, Optional
+import os
+from datetime import datetime, timedelta
 
 from airflow import DAG
 from airflow.operators.python import PythonOperator
@@ -75,42 +75,24 @@ def _gcs_upload_if_enabled(local_file: Path, gcs_uri_path: str) -> Optional[str]
 #     TASKS
 # =======================
 def task_consume(**_) -> List[Dict[str, Any]]:
-    """
-    Lit un batch sur 'result' et déballe les enveloppes {"data":[...]}.
-    """
-    consumer = Consumer({
-        "bootstrap.servers": KAFKA_BROKER,
-        "group.id": GROUP_CONSUME,
-        "auto.offset.reset": "earliest",
-        "enable.auto.commit": True,
-    })
-    consumer.subscribe([TOPIC_RESULT])
+    """Lit localement le fichier de sortie du DAG1 (prévisualisation) pour test."""
+    # === Chemin du fichier local à lire ===
+    TEST_FILE = Path("/exports/preview/preview-20251029T011356Z.json")  # <-- adapte ce nom à ton fichier
+    if not TEST_FILE.exists():
+        raise FileNotFoundError(f"Fichier de test introuvable : {TEST_FILE}")
+
+    with open(TEST_FILE, "r", encoding="utf-8") as f:
+        raw = json.load(f)
 
     docs: List[Dict[str, Any]] = []
-    start = datetime.utcnow()
+    if isinstance(raw, dict) and "data" in raw:
+        docs.extend(raw["data"])
+    elif isinstance(raw, list):
+        docs.extend(raw)
+    else:
+        docs.append(raw)
 
-    try:
-        while len(docs) < MAX_MESSAGES and (datetime.utcnow() - start).total_seconds() < RUN_WINDOW_SECONDS:
-            msg = consumer.poll(POLL_TIMEOUT)
-            if msg is None:
-                continue
-            if msg.error():
-                print(f"[ConsumKafka] Kafka error: {msg.error()}")
-                continue
-            try:
-                obj = json.loads(msg.value().decode("utf-8"))
-                # ❶ déballage {"data":[…]}
-                if isinstance(obj, dict) and "data" in obj and isinstance(obj["data"], list):
-                    docs.extend(obj["data"])
-                # ❷ tolère un document unique
-                elif isinstance(obj, dict):
-                    docs.append(obj)
-            except Exception as e:
-                print(f"[ConsumKafka] Bad message: {e}")
-    finally:
-        consumer.close()
-
-    print(f"[ConsumKafka] Pulled {len(docs)} documents after unwrapping.")
+    print(f"[ConsumFile-TEST] Read {len(docs)} docs from {TEST_FILE}")
     return docs
 
 def task_transform(ti, **_) -> List[Dict[str, Any]]:
@@ -140,6 +122,50 @@ def task_transform(ti, **_) -> List[Dict[str, Any]]:
             print(f"[TransformJson] Transform failed: {e}")
 
     print(f"[TransformJson] Transformed {len(out)} docs")
+
+    # ==========================================================
+    # Création d'une version simplifiée (lisible) pour le JSON local
+    # ==========================================================
+    simplified_list = []
+    for d in out:
+        # On cherche les valeurs attendues, qu'elles soient "flat" ou imbriquées
+        simp = {
+            "nomclient": d.get("properties-client_nomclient") or d.get("nomclient", ""),
+            "telephoneClient": d.get("properties-client_telephoneClient") or d.get("telephoneClient", ""),
+            "locationClient": [float(d.get("properties-client_location").split(",")[0]),
+                   float(d.get("properties-client_location").split(",")[1])]
+                   if d.get("properties-client_location") else None,
+            "distance": d.get("distance", 0),
+            "confort": d.get("confort", ""),
+            "prix_travel": d.get("prix_travel", 0),
+            "nomDriver": d.get("properties-driver_nomDriver") or d.get("nomDriver", ""),
+            "locationDriver": [float(d.get("properties-driver_location").split(",")[0]),
+                   float(d.get("properties-driver_location").split(",")[1])]
+                   if d.get("properties-driver_location") else None,
+            "telephoneDriver": d.get("properties-driver_telephoneDriver") or d.get("telephoneDriver", ""),
+            "agent_timestamp": d.get("agent_timestamp", ""),
+        }
+        simplified_list.append(simp)
+
+    # ==========================================================
+    # Écriture JSON locale (format attendu)
+    # ==========================================================
+    try:
+        json_dir = Path("/exports/json")
+        json_dir.mkdir(parents=True, exist_ok=True)
+        filename = f"transform_simplified_{datetime.utcnow():%Y%m%dT%H%M%S}.json"
+        file_path = json_dir / filename
+
+        # Si un seul doc, on écrit juste l’objet au lieu d’une liste
+        to_dump = simplified_list[0] if len(simplified_list) == 1 else simplified_list
+
+        with open(file_path, "w", encoding="utf-8") as f:
+            json.dump(to_dump, f, ensure_ascii=False, indent=3)
+
+        print(f"[TransformJson] Saved simplified JSON to {file_path}")
+    except Exception as e:
+        print(f"[TransformJson] WARNING: failed to write simplified JSON: {e}")
+
     return out
 
 def task_put_es(ti, **_) -> int:
@@ -158,11 +184,7 @@ def task_put_es(ti, **_) -> int:
     return len(docs)
 
 def task_put_gcp(ti, **_) -> int:
-    """
-    Écrit un parquet partitionné dans EXPORT_DIR.
-    Si ENABLE_GCS_UPLOAD=true & GCS_BUCKET défini & lib installée,
-    uploade aussi vers GCS sous gs://{bucket}/{GCS_PREFIX}/year=.../month=.../day=.../hour=.../file.parquet
-    """
+
     docs: List[Dict[str, Any]] = ti.xcom_pull(task_ids="TransformJson") or []
     if not docs:
         print("[PutGCP] Nothing to export/upload.")
@@ -198,7 +220,7 @@ default_args = {
 }
 
 with DAG(
-    dag_id="transform_json_v2",
+    dag_id="transform_json_test",
     default_args=default_args,
     start_date=datetime(2025, 1, 1),
     schedule_interval="*/3 * * * *",  # toutes les 3 minutes

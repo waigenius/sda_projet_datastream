@@ -7,6 +7,44 @@ from typing import Any, Dict, List, Union
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 
+import math
+
+def _unwrap_payload(obj):
+    # accepte {"data":[...]} OU une liste OU un objet
+    if isinstance(obj, dict) and "data" in obj and isinstance(obj["data"], list):
+        return obj["data"]
+    return obj if isinstance(obj, list) else [obj]
+
+def _get_coord(d: dict) -> tuple[float | None, float | None]:
+    """
+    Récupère (lat, lon) en tolérant les fautes de frappe:
+    - 'logitude' (typo fréquente) au lieu de 'longitude'
+    - champs directement dans properties-* du JSON fourni
+    """
+    lat = d.get("latitude") or d.get("lat")
+    lon = d.get("longitude") or d.get("logitude") or d.get("lon")
+    try:
+        lat = float(lat) if lat is not None else None
+        lon = float(lon) if lon is not None else None
+    except Exception:
+        lat = lon = None
+    return lat, lon
+
+def _to_loc_string(lat: float | None, lon: float | None) -> str:
+    if lat is None or lon is None:
+        return ""
+    # format attendu "lon, lat"
+    return f"{lon:.4f}, {lat:.4f}"
+
+def _haversine_km(lat1, lon1, lat2, lon2) -> float:
+    """Distance en km entre deux points (lat/lon en degrés)."""
+    R = 6371.0
+    from math import radians, sin, cos, asin, sqrt
+    φ1, λ1, φ2, λ2 = map(radians, [lat1, lon1, lat2, lon2])
+    dφ, dλ = (φ2-φ1), (λ2-λ1)
+    a = sin(dφ/2)**2 + cos(φ1)*cos(φ2)*sin(dλ/2)**2
+    return R * 2 * asin(sqrt(a))
+
 DATA_TEST_PATH = Path(os.getenv("DATA_TEST_PATH", "/opt/airflow/data/data_projet_vtest.json"))
 EXPORT_DIR = Path(os.getenv("EXPORT_DIR", "/exports"))
 
@@ -17,26 +55,56 @@ def task_read_file(**_) -> List[Dict[str, Any]]:
     if not DATA_TEST_PATH.exists():
         raise FileNotFoundError(f"Fichier introuvable: {DATA_TEST_PATH}")
     with open(DATA_TEST_PATH, "r", encoding="utf-8") as f:
-        data = json.load(f)
-    docs = _ensure_list(data)
+        raw = json.load(f)
+    docs = _unwrap_payload(raw)  # <-- accepte {"data":[...]}
     print(f"[ConsumFile] Read {len(docs)} item(s) from {DATA_TEST_PATH}")
-    return docs  # XCom
+    return docs
 
 def task_compute_fr(ti, **_) -> Dict[str, Any]:
     docs: List[Dict[str, Any]] = ti.xcom_pull(task_ids="ConsumKafkaFile") or []
     out_docs: List[Dict[str, Any]] = []
 
     for d in docs:
-        # champs attendus (FR)
-        distance = float(d.get("distance", 0.0))
+        confort = d.get("confort", "standard")
         prix_base = float(d.get("prix_base_per_km", 2.0))
+
+        client = d.get("properties-client", {}) or {}
+        driver = d.get("properties-driver", {}) or {}
+
+        # tolère "logitude"/"latitude"
+        c_lat, c_lon = _get_coord(client)
+        d_lat, d_lon = _get_coord(driver)
+
+        # distance: si fournie on la garde; sinon on la calcule
+        if "distance" in d:
+            try:
+                distance = float(d.get("distance", 0.0))
+            except Exception:
+                distance = 0.0
+        else:
+            distance = _haversine_km(c_lat, c_lon, d_lat, d_lon) if None not in (c_lat, c_lon, d_lat, d_lon) else 0.0
+
         prix_travel = round(prix_base * distance, 2)
 
-        out_doc = dict(d)
-        out_doc["prix_travel"] = prix_travel
+        out_doc = {
+            "properties-client": {
+                "nomclient": client.get("nomclient", ""),
+                "telephoneClient": client.get("telephoneClient", ""),
+                # la maquette attend "lon, lat"
+                "location": _to_loc_string(c_lat, c_lon),
+            },
+            "distance": distance,
+            "properties-driver": {
+                "nomDriver": driver.get("nomDriver", ""),
+                "location": _to_loc_string(d_lat, d_lon),
+                "telephoneDriver": driver.get("telephoneDriver", ""),
+            },
+            "prix_base_per_km": prix_base,
+            "confort": confort,
+            "prix_travel": prix_travel,
+        }
         out_docs.append(out_doc)
 
-    # Emballage exactement comme la capture: {"data": [ {...}, {...} ]}
     wrapped = {"data": out_docs}
     print("[ComputCostTravel] OUTPUT PREVIEW:\n" + json.dumps(wrapped, ensure_ascii=False, indent=2))
     return wrapped

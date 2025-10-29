@@ -8,8 +8,8 @@ import calcul_distance
 
 # --- Configuration des Topics et Connexion ---
 KAFKA_CONN_ID = 'kfakasda.eastus.cloudapp.azure.com:9092'
-SOURCE_TOPIC = "topic_source"
-RESULT_TOPIC = "topic_result"
+SOURCE_TOPIC = "topic source"
+RESULT_TOPIC = "topic result"
 
 # Simuler le nombre de messages à traiter par lot pour cette exécution
 MAX_MESSAGES_PER_RUN = 1 

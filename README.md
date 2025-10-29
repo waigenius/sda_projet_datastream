@@ -1,4 +1,4 @@
-# 📘 Projet Datastream (branche `branche-cic`)
+# 📘 Projet Datastream
 
 ## 🧩 Objectif
 Ce projet met en place une chaîne complète de traitement de données en temps réel : Kafka → Airflow → Elasticsearch → Kibana.

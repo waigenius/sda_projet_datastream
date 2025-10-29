@@ -195,15 +195,6 @@ bq show taxi-streaming-project:datastream_dataset.uber_data
 
 ---
 
-## 📞 Support
-
-En cas de problème:
-1. Vérifiez les logs dans BigQuery Query History
-2. Vérifiez les permissions IAM du service account
-3. Consultez la documentation GCP: https://cloud.google.com/bigquery/docs/kmeans-tutorial
-
----
-
 **Auteur**: Jiwon  
 **Date**: 2025-10-29  
 **Projet**: Datastream Taxi Streaming Project

@@ -1,0 +1,20 @@
+{
+  "data": [
+    {
+      "confort": "low",
+      "prix_base_per_km": 1.5,
+      "properties-client": {
+        "logitude": 2.3522,
+        "latitude": 48.8566,
+        "nomclient": "GUEYE",
+        "telephoneClient": "065555888"
+      },
+      "properties-driver": {
+        "logitude": 4.8357,
+        "latitude": 45.7640,
+        "nomDriver": "NDAO",
+        "telephoneDriver": "0799887766"
+      }
+    }
+  ]
+}

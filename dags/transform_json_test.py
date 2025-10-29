@@ -78,7 +78,7 @@ def _gcs_upload_if_enabled(local_file: Path, gcs_uri_path: str) -> Optional[str]
 def task_consume(**_) -> List[Dict[str, Any]]:
     """Lit localement le fichier de sortie du DAG1 (prévisualisation) pour test."""
     # === Chemin du fichier local à lire ===
-    TEST_FILE = Path("/exports/preview/preview-20251029T190337Z.json")  # <-- adapte ce nom à ton fichier
+    TEST_FILE = Path("/exports/preview/preview-20251029T192351Z.json")  # <-- adapte ce nom à ton fichier
     if not TEST_FILE.exists():
         raise FileNotFoundError(f"Fichier de test introuvable : {TEST_FILE}")
 

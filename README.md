@@ -104,7 +104,7 @@ curl -s "http://localhost:9200/rides-000001/_search?size=3&pretty" | jq '.hits.h
 
 ### Kibana
 - URL : [http://localhost:5601](http://localhost:5601)
-- Crée un **Data View** : `rides-*` (champ `agent_timestamp`)
+- Crée un **Data View** : `trips-*` (champ `agent_timestamp`)
 - Dans *Discover* : sélectionne “Last 7 days”
 - Dans *Visualize Library* :
   - *Carte* : champ `pickup`

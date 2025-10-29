@@ -1,0 +1,20 @@
+{
+  "data": [
+    {
+      "properties-client": {
+        "nomclient": "NDIAYE",
+        "telephoneClient": "061010101",
+        "location": "4.8357, 45.7640"
+      },
+      "distance": 531.891118621424,
+      "properties-driver": {
+        "nomDriver": "GUEYE",
+        "location": "2.1686, 41.3874",
+        "telephoneDriver": "077223344"
+      },
+      "prix_base_per_km": 2.0,
+      "confort": "standard",
+      "prix_travel": 1063.78
+    }
+  ]
+}

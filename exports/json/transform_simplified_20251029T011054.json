@@ -1,0 +1,18 @@
+{
+   "nomclient": "DIOUF",
+   "telephoneClient": "060555666",
+   "locationClient": [
+      -0.1278,
+      51.5074
+   ],
+   "distance": 343.55606034104153,
+   "confort": "high",
+   "prix_travel": 1030.67,
+   "nomDriver": "CAMARA",
+   "locationDriver": [
+      2.3522,
+      48.8566
+   ],
+   "telephoneDriver": "078909090",
+   "agent_timestamp": "2025-10-29T01:10:54Z"
+}

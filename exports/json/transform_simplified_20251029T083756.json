@@ -1,0 +1,18 @@
+{
+   "nomclient": "GUEYE",
+   "telephoneClient": "065555888",
+   "locationClient": [
+      2.3522,
+      48.8566
+   ],
+   "distance": 391.4989316742569,
+   "confort": "low",
+   "prix_travel": 587.25,
+   "nomDriver": "NDAO",
+   "locationDriver": [
+      4.8357,
+      45.764
+   ],
+   "telephoneDriver": "0799887766",
+   "agent_timestamp": "2025-10-29T08:37:56Z"
+}

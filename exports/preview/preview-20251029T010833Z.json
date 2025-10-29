@@ -1,0 +1,20 @@
+{
+  "data": [
+    {
+      "properties-client": {
+        "nomclient": "BA",
+        "telephoneClient": "060333444",
+        "location": "13.4050, 52.5200"
+      },
+      "distance": 1499.4475528057962,
+      "properties-driver": {
+        "nomDriver": "SECK",
+        "location": "2.1734, 41.3851",
+        "telephoneDriver": "077334455"
+      },
+      "prix_base_per_km": 3.0,
+      "confort": "high",
+      "prix_travel": 4498.34
+    }
+  ]
+}

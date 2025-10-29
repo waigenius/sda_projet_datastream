@@ -1,0 +1,18 @@
+{
+   "nomclient": "BA",
+   "telephoneClient": "060333444",
+   "locationClient": [
+      13.405,
+      52.52
+   ],
+   "distance": 1499.4475528057962,
+   "confort": "high",
+   "prix_travel": 4498.34,
+   "nomDriver": "SECK",
+   "locationDriver": [
+      2.1734,
+      41.3851
+   ],
+   "telephoneDriver": "077334455",
+   "agent_timestamp": "2025-10-29T01:09:39Z"
+}

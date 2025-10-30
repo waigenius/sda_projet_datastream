@@ -2,8 +2,8 @@
 
 **Projet**: Datastream Taxi Streaming  
 **Auteur**: Jiwon  
-**Date**: 2025-10-29  
-**Dataset**: `taxi-streaming-project.taxi_streaming_eu`
+**Dataset**: uber-split2.csv
+**Projet Google Cloud**:`taxi-streaming-project.taxi_streaming_eu`
 
 ---
 
@@ -211,16 +211,6 @@ ORDER BY ca_total DESC;
 
 ---
 
-## 🚀 Prochaines Étapes
-
-- [ ] Collecter plus de données pour couvrir tous les 8 clusters
-- [ ] Analyser les trajets "standard" (distance 622km anormale)
-- [ ] Créer un dashboard Kibana avec les métriques clés
-- [ ] Automatiser le réentraînement du modèle (mensuel)
-- [ ] Implémenter une tarification dynamique basée sur les clusters
-
----
-
 ## 📚 Références
 
 - **Modèle BigQuery ML**: `taxi-streaming-project.taxi_streaming_eu.kmeans_location_model`
@@ -230,5 +220,5 @@ ORDER BY ca_total DESC;
 
 ---
 
-**Dernière mise à jour**: 2025-10-29 18:00  
+**Dernière mise à jour**: 2025-10-29 
 **Statut**: ✅ Analyse complète | 📊 Résultats validés

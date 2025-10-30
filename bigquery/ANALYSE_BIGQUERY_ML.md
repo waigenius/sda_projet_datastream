@@ -10,7 +10,7 @@
 ## 🎯 Objectif
 
 Utiliser BigQuery ML pour:
-1. Créer un modèle **K-Means** avec 8 clusters basé sur les coordonnées géographiques
+1. Créer un modèle **K-Means** avec 8 clusters basé sur uber-split2.csv
 2. Analyser le **chiffre d'affaires** par cluster et type de confort
 3. Identifier les zones géographiques les plus rentables
 

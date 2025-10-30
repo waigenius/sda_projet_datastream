@@ -1,7 +1,7 @@
 # Analyse BigQuery ML - Clustering K-Means
 
 **Auteur:** Jiwon Yi  
-**Date:** 30 octobre 2025  
+**Date:** 29 octobre 2025  
 **Rôle:** Analyse BigQuery et Machine Learning  
 **Institution:** Université Paris 1 Panthéon-Sorbonne
 
@@ -267,13 +267,6 @@ python run_transform_hive.py
 
 ---
 
-## 👥 Équipe projet
-
-- **Jiwon Yi:** Configuration GCS, BigQuery ML, analyse CA (ce travail)
-- **Cheikh & Patricia:** DAGs Airflow, transformation JSON, Kafka/Elasticsearch
-
----
-
 ## 📚 Références
 
 - [BigQuery ML Documentation](https://cloud.google.com/bigquery-ml/docs)
@@ -295,6 +288,6 @@ Pour exécuter ce projet, vous devez configurer vos propres ressources GCP avec 
 
 ---
 
-**Version:** 1.0  
-**Dernière mise à jour:** 30 octobre 2025  
-**Licence:** Projet académique - Tous droits réservés
+**Version:** 3.0  
+**Dernière mise à jour:** 29 octobre 2025  
+
